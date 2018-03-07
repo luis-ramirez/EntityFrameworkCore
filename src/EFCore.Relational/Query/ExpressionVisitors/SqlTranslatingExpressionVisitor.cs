@@ -147,7 +147,6 @@ namespace Microsoft.EntityFrameworkCore.Query.ExpressionVisitors
             switch (expression.NodeType)
             {
                 case ExpressionType.Coalesce:
-                {
                     var left = Visit(expression.Left);
                     var right = Visit(expression.Right);
 
@@ -157,31 +156,25 @@ namespace Microsoft.EntityFrameworkCore.Query.ExpressionVisitors
                            && right.Type != typeof(Expression[])
                         ? expression.Update(left, expression.Conversion, right)
                         : null;
-                }
 
                 case ExpressionType.Equal:
                 case ExpressionType.NotEqual:
-                {
                     var structuralComparisonExpression
                         = UnfoldStructuralComparison(
                             expression.NodeType,
                             ProcessComparisonExpression(expression));
 
                     return structuralComparisonExpression;
-                }
 
                 case ExpressionType.GreaterThan:
                 case ExpressionType.GreaterThanOrEqual:
                 case ExpressionType.LessThan:
                 case ExpressionType.LessThanOrEqual:
-                {
                     return ProcessComparisonExpression(expression);
-                }
 
                 case ExpressionType.AndAlso:
-                {
-                    var left = Visit(expression.Left);
-                    var right = Visit(expression.Right);
+                    left = Visit(expression.Left);
+                    right = Visit(expression.Right);
 
                     if (expression == _topLevelPredicate)
                     {
@@ -209,7 +202,6 @@ namespace Microsoft.EntityFrameworkCore.Query.ExpressionVisitors
                     return left != null && right != null
                         ? Expression.AndAlso(left, right)
                         : null;
-                }
 
                 case ExpressionType.OrElse:
                 case ExpressionType.Add:
@@ -219,7 +211,6 @@ namespace Microsoft.EntityFrameworkCore.Query.ExpressionVisitors
                 case ExpressionType.Modulo:
                 case ExpressionType.And:
                 case ExpressionType.Or:
-                {
                     var leftExpression = Visit(expression.Left);
                     var rightExpression = Visit(expression.Right);
 
@@ -232,7 +223,6 @@ namespace Microsoft.EntityFrameworkCore.Query.ExpressionVisitors
                             expression.IsLiftedToNull,
                             expression.Method)
                         : null;
-                }
             }
 
             return null;
@@ -794,7 +784,6 @@ namespace Microsoft.EntityFrameworkCore.Query.ExpressionVisitors
             switch (expression.NodeType)
             {
                 case ExpressionType.Negate:
-                {
                     var operand = Visit(expression.Operand);
                     if (operand != null)
                     {
@@ -802,22 +791,20 @@ namespace Microsoft.EntityFrameworkCore.Query.ExpressionVisitors
                     }
 
                     break;
-                }
+
                 case ExpressionType.Not:
-                {
-                    var operand = Visit(expression.Operand);
+                    operand = Visit(expression.Operand);
                     if (operand != null)
                     {
                         return Expression.Not(operand);
                     }
 
                     break;
-                }
+
                 case ExpressionType.Convert:
-                {
                     var isTopLevelProjection = _isTopLevelProjection;
                     _isTopLevelProjection = false;
-                    var operand = Visit(expression.Operand);
+                    operand = Visit(expression.Operand);
                     _isTopLevelProjection = isTopLevelProjection;
 
                     if (operand != null)
@@ -832,7 +819,7 @@ namespace Microsoft.EntityFrameworkCore.Query.ExpressionVisitors
                     }
 
                     break;
-                }
+
             }
 
             return null;
@@ -939,19 +926,41 @@ namespace Microsoft.EntityFrameworkCore.Query.ExpressionVisitors
                         = (RelationalQueryModelVisitor)_queryModelVisitor.QueryCompilationContext
                             .CreateQueryModelVisitor(_queryModelVisitor);
 
+                    if (expression.QueryModel.MainFromClause.FromExpression is QuerySourceReferenceExpression groupQsre
+                        && groupQsre.Type.IsGrouping())
+                    {
+                        var targetExpression = _queryModelVisitor.QueryCompilationContext.QuerySourceMapping
+                            .GetExpression(groupQsre.ReferencedQuerySource);
+
+                        if (targetExpression.Type == typeof(ValueBuffer))
+                        {
+                            var outerSelectExpression = _targetSelectExpression.Clone();
+                            subQueryModelVisitor.AddQuery(subQueryModel.MainFromClause, outerSelectExpression);
+
+                            _queryModelVisitor.QueryCompilationContext.AddOrUpdateMapping(
+                                groupQsre.ReferencedQuerySource,
+                                Expression.Parameter(
+                                    typeof(IEnumerable<>).MakeGenericType(typeof(ValueBuffer))));
+
+                            subQueryModelVisitor.VisitSubQueryModel(subQueryModel);
+
+                            _queryModelVisitor.QueryCompilationContext.AddOrUpdateMapping(
+                                groupQsre.ReferencedQuerySource,
+                                targetExpression);
+
+                            if (outerSelectExpression.Projection.Count == 1)
+                            {
+                                return outerSelectExpression.Projection.Single();
+                            }
+                        }
+                    }
+
                     var queriesProjectionCountMapping
                         = _queryModelVisitor.Queries
                             .ToDictionary(k => k, s => s.Projection.Count);
 
                     var queryModelMapping = new Dictionary<QueryModel, QueryModel>();
                     subQueryModel.PopulateQueryModelMapping(queryModelMapping);
-
-                    var groupByTranslation = expression.QueryModel.MainFromClause.FromExpression.Type.IsGrouping();
-                    if (groupByTranslation)
-                    {
-                        var outerSelectExpression = _targetSelectExpression.Clone();
-                        subQueryModelVisitor.AddQuery(subQueryModel.MainFromClause, outerSelectExpression);
-                    }
 
                     subQueryModelVisitor.VisitSubQueryModel(subQueryModel);
 
@@ -967,12 +976,6 @@ namespace Microsoft.EntityFrameworkCore.Query.ExpressionVisitors
                         }
 
                         _queryModelVisitor.LiftInjectedParameters(subQueryModelVisitor);
-
-                        if (groupByTranslation
-                            && selectExpression.Projection.Count == 1)
-                        {
-                            return selectExpression.Projection.Single();
-                        }
 
                         return selectExpression;
                     }
@@ -1041,7 +1044,6 @@ namespace Microsoft.EntityFrameworkCore.Query.ExpressionVisitors
             switch (expression)
             {
                 case StringCompareExpression stringCompare:
-                {
                     var newLeft = Visit(stringCompare.Left);
                     var newRight = Visit(stringCompare.Right);
                     if (newLeft == null
@@ -1054,9 +1056,8 @@ namespace Microsoft.EntityFrameworkCore.Query.ExpressionVisitors
                            || newRight != stringCompare.Right
                         ? new StringCompareExpression(stringCompare.Operator, newLeft, newRight)
                         : expression;
-                }
+
                 case ExplicitCastExpression explicitCast:
-                {
                     var newOperand = Visit(explicitCast.Operand);
                     if (newOperand == null)
                     {
@@ -1066,9 +1067,8 @@ namespace Microsoft.EntityFrameworkCore.Query.ExpressionVisitors
                     return newOperand != explicitCast.Operand
                         ? new ExplicitCastExpression(newOperand, explicitCast.Type)
                         : expression;
-                }
+
                 case NullConditionalExpression nullConditionalExpression:
-                {
                     var newAccessOperation = Visit(nullConditionalExpression.AccessOperation);
                     if (newAccessOperation == null)
                     {
@@ -1081,17 +1081,15 @@ namespace Microsoft.EntityFrameworkCore.Query.ExpressionVisitors
                     }
 
                     return new NullableExpression(newAccessOperation);
-                }
+
                 case NullSafeEqualExpression nullSafeEqualExpression:
-                {
                     var equalityExpression
                         = new NullCompensatedExpression(nullSafeEqualExpression.EqualExpression);
 
                     return Visit(equalityExpression);
-                }
+
                 case NullCompensatedExpression nullCompensatedExpression:
-                {
-                    var newOperand = Visit(nullCompensatedExpression.Operand);
+                    newOperand = Visit(nullCompensatedExpression.Operand);
                     if (newOperand == null)
                     {
                         return null;
@@ -1100,7 +1098,7 @@ namespace Microsoft.EntityFrameworkCore.Query.ExpressionVisitors
                     return newOperand != nullCompensatedExpression.Operand
                         ? new NullCompensatedExpression(newOperand)
                         : nullCompensatedExpression;
-                }
+
                 case DiscriminatorPredicateExpression discriminatorPredicateExpression:
                     return new DiscriminatorPredicateExpression(
                         base.VisitExtension(expression), discriminatorPredicateExpression.QuerySource);

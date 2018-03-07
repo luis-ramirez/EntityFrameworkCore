@@ -302,7 +302,8 @@ namespace Microsoft.EntityFrameworkCore.Query.Expressions
                && Offset == null
                && Projection.Count == 0
                && OrderBy.Count == 0
-               && GroupBy.Count == 0
+            // GroupBy is intentionally ommitted because GroupBy does not require a pushdown.
+               //&& GroupBy.Count == 0
                && Tables.Count == 1;
 
         /// <summary>
@@ -882,6 +883,9 @@ namespace Microsoft.EntityFrameworkCore.Query.Expressions
         {
             Check.NotNull(groupingExpressions, nameof(groupingExpressions));
 
+            // Skip/Take will cause PushDown prior to calling this method so it is safe to clear ordering if any.
+            // Ordering before GroupBy Aggregate has no effect.
+            _orderBy.Clear();
             _groupBy.AddRange(groupingExpressions);
         }
 

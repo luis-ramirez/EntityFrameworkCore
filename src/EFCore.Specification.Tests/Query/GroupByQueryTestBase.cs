@@ -116,7 +116,7 @@ namespace Microsoft.EntityFrameworkCore.Query
                         new
                         {
                             g.Key,
-                            Average = g.LongCount()
+                            LongCount = g.LongCount()
                         }),
                 e => e.Key);
         }
@@ -130,7 +130,7 @@ namespace Microsoft.EntityFrameworkCore.Query
                         new
                         {
                             g.Key,
-                            Average = g.Max(o => o.OrderID)
+                            Max = g.Max(o => o.OrderID)
                         }),
                 e => e.Key);
         }
@@ -144,7 +144,7 @@ namespace Microsoft.EntityFrameworkCore.Query
                         new
                         {
                             g.Key,
-                            Average = g.Min(o => o.OrderID)
+                            Min = g.Min(o => o.OrderID)
                         }),
                 e => e.Key);
         }
@@ -158,7 +158,7 @@ namespace Microsoft.EntityFrameworkCore.Query
                         new
                         {
                             g.Key,
-                            Average = g.Sum(o => o.OrderID)
+                            Sum = g.Sum(o => o.OrderID)
                         }),
                 e => e.Key);
         }
@@ -342,7 +342,7 @@ namespace Microsoft.EntityFrameworkCore.Query
                         new
                         {
                             g.Key,
-                            Average = g.LongCount()
+                            LongCount = g.LongCount()
                         }),
                 e => e.Key.CustomerID + " " + e.Key.EmployeeID);
         }
@@ -356,7 +356,7 @@ namespace Microsoft.EntityFrameworkCore.Query
                         new
                         {
                             g.Key,
-                            Average = g.Max(o => o.OrderID)
+                            Max = g.Max(o => o.OrderID)
                         }),
                 e => e.Key.CustomerID + " " + e.Key.EmployeeID);
         }
@@ -370,7 +370,7 @@ namespace Microsoft.EntityFrameworkCore.Query
                         new
                         {
                             g.Key,
-                            Average = g.Min(o => o.OrderID)
+                            Min = g.Min(o => o.OrderID)
                         }),
                 e => e.Key.CustomerID + " " + e.Key.EmployeeID);
         }
@@ -384,7 +384,7 @@ namespace Microsoft.EntityFrameworkCore.Query
                         new
                         {
                             g.Key,
-                            Average = g.Sum(o => o.OrderID)
+                            Sum = g.Sum(o => o.OrderID)
                         }),
                 e => e.Key.CustomerID + " " + e.Key.EmployeeID);
         }
@@ -1119,6 +1119,7 @@ namespace Microsoft.EntityFrameworkCore.Query
         {
             AssertQuery<Order>(
                 os =>
+                // TODO: See issue#11215
                     os.GroupBy(o => o.CustomerID).Distinct().Select(g => g.Key));
         }
 
