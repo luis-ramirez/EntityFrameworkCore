@@ -4,6 +4,7 @@
 using System;
 using JetBrains.Annotations;
 using Microsoft.EntityFrameworkCore.ChangeTracking;
+using Microsoft.EntityFrameworkCore.Internal;
 using Microsoft.EntityFrameworkCore.Storage.ValueConversion;
 using Microsoft.EntityFrameworkCore.Utilities;
 
@@ -20,6 +21,8 @@ namespace Microsoft.EntityFrameworkCore.Storage
     /// </summary>
     public class CoreTypeMapping
     {
+        private ValueComparer _comparer;
+
         /// <summary>
         ///     Initializes a new instance of the <see cref="CoreTypeMapping" /> class.
         /// </summary>
@@ -33,9 +36,14 @@ namespace Microsoft.EntityFrameworkCore.Storage
         {
             Check.NotNull(clrType, nameof(clrType));
 
-            ClrType = converter?.ModelClrType ?? clrType;
+            clrType = converter?.ModelClrType ?? clrType;
+            ClrType = clrType;
             Converter = converter;
-            Comparer = comparer;
+
+            if (comparer?.Type == clrType)
+            {
+                _comparer = comparer;
+            }
         }
 
         /// <summary>
@@ -54,7 +62,11 @@ namespace Microsoft.EntityFrameworkCore.Storage
         ///     CLR types that cannot be compared with <see cref="object.Equals(object, object)" />
         ///     and/or need a deep copy when taking a snapshot.
         /// </summary>
-        public virtual ValueComparer Comparer { get; }
+        public virtual ValueComparer Comparer
+            => NonCapturingLazyInitializer.EnsureInitialized(
+                ref _comparer,
+                this,
+                c => (ValueComparer)Activator.CreateInstance(typeof(ValueComparer<>).MakeGenericType(c.ClrType)));
 
         /// <summary>
         ///     Returns a new copy of this type mapping with the given <see cref="ValueConverter" />

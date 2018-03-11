@@ -1589,30 +1589,31 @@ namespace Microsoft.EntityFrameworkCore.Migrations.Internal
                                            sourceProperty.GetValueComparer() ??
                                            targetProperty.FindMapping()?.Comparer ??
                                            sourceProperty.FindMapping()?.Comparer;
-                            if (sourceProperty.ClrType == targetProperty.ClrType
-                                && comparer != null)
+
+                            var convertedSourceValue = sourceConverter == null
+                                ? sourceValue
+                                : sourceConverter.ConvertToProvider(sourceValue);
+
+                            var convertedTargetValue = targetConverter == null
+                                ? targetValue
+                                : targetConverter.ConvertToProvider(targetValue);
+
+                            var modelValuesChanged
+                                = sourceProperty.ClrType.UnwrapNullableType() == targetProperty.ClrType.UnwrapNullableType()
+                                  && comparer != null
+                                  && !comparer.Equals(sourceValue, targetValue);
+
+                            var storeValuesChanged
+                                = convertedSourceValue?.GetType().UnwrapNullableType() != convertedTargetValue?.GetType().UnwrapNullableType()
+                                  || ((sourceConverter != null
+                                       || targetConverter != null)
+                                      && !Equals(convertedSourceValue, convertedTargetValue));
+
+                            if (!modelValuesChanged
+                                && !storeValuesChanged)
                             {
-                                if (comparer.CompareFunc(sourceValue, targetValue))
-                                {
-                                    entry.SetOriginalValue(targetProperty, entry.GetCurrentValue(targetProperty));
-                                    continue;
-                                }
-                            }
-                            else
-                            {
-                                if (sourceConverter != null)
-                                {
-                                    sourceValue = sourceConverter.ConvertToProvider(sourceValue);
-                                }
-                                if (targetConverter != null)
-                                {
-                                    targetValue = targetConverter.ConvertToProvider(targetValue);
-                                }
-                                if (Equals(sourceValue, targetValue))
-                                {
-                                    entry.SetOriginalValue(targetProperty, entry.GetCurrentValue(targetProperty));
-                                    continue;
-                                }
+                                entry.SetOriginalValue(targetProperty, entry.GetCurrentValue(targetProperty));
+                                continue;
                             }
 
                             if (targetProperty.AfterSaveBehavior != PropertySaveBehavior.Save)
@@ -1620,10 +1621,8 @@ namespace Microsoft.EntityFrameworkCore.Migrations.Internal
                                 entryMapping.RecreateRow = true;
                                 break;
                             }
-                            else
-                            {
-                                entry.SetPropertyModified(targetProperty);
-                            }
+
+                            entry.SetPropertyModified(targetProperty);
                         }
                     }
                 }

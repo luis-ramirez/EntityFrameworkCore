@@ -28,11 +28,6 @@ namespace Microsoft.EntityFrameworkCore.Storage
 
         protected class FakeValueComparer : ValueComparer<object>
         {
-            public FakeValueComparer()
-                : base((_, __) => true, _ => _)
-            {
-            }
-
             public override Type Type { get; } = typeof(object);
         }
 

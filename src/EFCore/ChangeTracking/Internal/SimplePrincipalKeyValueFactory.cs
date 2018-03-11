@@ -29,9 +29,16 @@ namespace Microsoft.EntityFrameworkCore.ChangeTracking.Internal
         {
             _property = property;
             _propertyAccessors = _property.GetPropertyAccessors();
-            EqualityComparer = typeof(IStructuralEquatable).GetTypeInfo().IsAssignableFrom(typeof(TKey).GetTypeInfo())
-                ? (IEqualityComparer<TKey>)new NoNullsStructuralEqualityComparer()
-                : new NoNullsEqualityComparer();
+
+            var comparer = property.GetValueComparer()
+                           ?? property.FindMapping()?.Comparer;
+
+            EqualityComparer
+                = comparer != null
+                    ? new NoNullsCustomEqualityComparer(comparer)
+                    : typeof(IStructuralEquatable).GetTypeInfo().IsAssignableFrom(typeof(TKey).GetTypeInfo())
+                        ? (IEqualityComparer<TKey>)new NoNullsStructuralEqualityComparer()
+                        : new NoNullsEqualityComparer();
         }
 
         /// <summary>
@@ -104,6 +111,32 @@ namespace Microsoft.EntityFrameworkCore.ChangeTracking.Internal
             public bool Equals(TKey x, TKey y) => _structuralEqualityComparer.Equals(x, y);
 
             public int GetHashCode(TKey obj) => _structuralEqualityComparer.GetHashCode(obj);
+        }
+
+        private sealed class NoNullsCustomEqualityComparer : IEqualityComparer<TKey>
+        {
+            private readonly Func<TKey, TKey, bool> _equals;
+            private readonly Func<TKey, int> _hashCode;
+
+            public NoNullsCustomEqualityComparer(ValueComparer comparer)
+            {
+                var equals = comparer.KeyEqualsExpression;
+                var hashCode = comparer.KeyHashCodeExpression;
+
+                if (comparer.Type != typeof(TKey)
+                    && comparer.Type == typeof(TKey).UnwrapNullableType())
+                {
+                    equals = ValueComparer.TransformEqualsForNonNullNullable(equals);
+                    hashCode = ValueComparer.TransformHashCodeForNonNullNullable(hashCode);
+                }
+
+                _equals = (Func<TKey, TKey, bool>)equals.Compile();
+                _hashCode = (Func<TKey, int>)hashCode.Compile();
+            }
+
+            public bool Equals(TKey x, TKey y) => _equals(x, y);
+
+            public int GetHashCode(TKey obj) => _hashCode(obj);
         }
     }
 }

@@ -9,6 +9,7 @@ using System.Linq;
 using System.Linq.Expressions;
 using System.Reflection;
 using System.Threading.Tasks;
+using Microsoft.EntityFrameworkCore.ChangeTracking;
 using Microsoft.EntityFrameworkCore.ChangeTracking.Internal;
 using Microsoft.EntityFrameworkCore.Extensions.Internal;
 using Microsoft.EntityFrameworkCore.Internal;
@@ -258,7 +259,27 @@ namespace Microsoft.EntityFrameworkCore.Query.Internal
 
                                 Expression equalityExpression;
 
-                                if (typeof(IStructuralEquatable).GetTypeInfo()
+                                var comparer
+                                    = pk.GetValueComparer()
+                                      ?? pk.FindMapping()?.Comparer;
+
+                                if (comparer != null)
+                                {
+                                    var equals = comparer.KeyEqualsExpression;
+
+                                    if (comparer.Type != pkMemberAccess.Type
+                                        && comparer.Type == pkMemberAccess.Type.UnwrapNullableType())
+                                    {
+                                        equals = ValueComparer.TransformEqualsForNonNullNullable(equals);
+                                    }
+
+                                    equalityExpression
+                                        = ValueComparer.ReplaceEqualsParameters(
+                                            equals,
+                                            pkMemberAccess,
+                                            fkMemberAccess);
+                                }
+                                else if (typeof(IStructuralEquatable).GetTypeInfo()
                                     .IsAssignableFrom(pkMemberAccess.Type.GetTypeInfo()))
                                 {
                                     equalityExpression
